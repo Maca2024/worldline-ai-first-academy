@@ -16,7 +16,7 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "Worldline AI-First Developer Academy | AetherLink",
   description:
-    "Transform 900 engineers into AI-first developers. 8-week program covering prompt engineering, context engineering, intent engineering, specification engineering, and Claude Code mastery.",
+    "Transform 30 engineers into AI-first developers. 9-week program covering prompt engineering, context engineering, intent engineering, specification engineering, and Claude Code mastery.",
   openGraph: {
     title: "Worldline AI-First Developer Academy",
     description:

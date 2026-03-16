@@ -38,6 +38,15 @@ body {
   }
 }
 
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -50,4 +59,13 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #3B82F6;
+}
+
+/* Code highlight overrides for dark theme */
+pre code.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+}
+.hljs {
+  background: transparent !important;
 }
