@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -15,12 +16,57 @@ import {
   Clock,
   CheckCircle2,
   BookOpen,
+  Loader2,
 } from 'lucide-react';
 
 export default function LessonPage() {
   const params = useParams();
   const lessonId = params.id as string;
   const lesson = getLessonById(lessonId);
+
+  const [completed, setCompleted] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/progress/lesson?lessonId=${encodeURIComponent(lessonId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const record = data.progress?.find(
+          (p: { lesson_id: string; status: string }) => p.lesson_id === lessonId
+        );
+        setCompleted(record?.status === 'completed');
+      }
+    } catch {
+      // Non-critical — user can still interact
+    } finally {
+      setLoadingStatus(false);
+    }
+  }, [lessonId]);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  const handleMarkComplete = async () => {
+    setCompleting(true);
+    try {
+      const res = await fetch('/api/progress/lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId }),
+      });
+
+      if (res.ok) {
+        setCompleted(true);
+      }
+    } catch {
+      // Silent fail — non-blocking UX
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   if (!lesson) {
     return (
@@ -33,7 +79,6 @@ export default function LessonPage() {
     );
   }
 
-  // Find week and day for this lesson
   const parentWeek = curriculum.find((w) =>
     w.days.some((d) => d.lessons.some((l) => l.id === lessonId))
   );
@@ -41,10 +86,7 @@ export default function LessonPage() {
     d.lessons.some((l) => l.id === lessonId)
   );
 
-  // Find prev/next lessons
-  const allLessons = curriculum.flatMap((w) =>
-    w.days.flatMap((d) => d.lessons)
-  );
+  const allLessons = curriculum.flatMap((w) => w.days.flatMap((d) => d.lessons));
   const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
@@ -53,16 +95,11 @@ export default function LessonPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-400">
-        <Link href="/academy" className="hover:text-white transition-colors">
-          Dashboard
-        </Link>
+        <Link href="/academy" className="hover:text-white transition-colors">Dashboard</Link>
         <span>/</span>
         {parentWeek && (
           <>
-            <Link
-              href={`/academy/week/${parentWeek.id}`}
-              className="hover:text-white transition-colors"
-            >
+            <Link href={`/academy/week/${parentWeek.id}`} className="hover:text-white transition-colors">
               Week {parentWeek.number}
             </Link>
             <span>/</span>
@@ -92,18 +129,38 @@ export default function LessonPage() {
             <Clock className="w-3.5 h-3.5" />
             {lesson.duration} minuten
           </span>
+          {completed && (
+            <span className="flex items-center gap-1 text-xs text-accent-green font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Voltooid
+            </span>
+          )}
         </div>
         <h1 className="text-3xl font-bold text-white">{lesson.title}</h1>
         <p className="text-gray-400 mt-2">{lesson.description}</p>
       </div>
 
       {/* Mark Complete Button */}
-      <div className="flex items-center gap-3">
-        <Button variant="primary" size="sm">
-          <CheckCircle2 className="w-4 h-4" />
-          Markeer als voltooid
-        </Button>
-      </div>
+      {!loadingStatus && !completed && (
+        <div className="flex items-center gap-3">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleMarkComplete}
+            loading={completing}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Markeer als voltooid
+          </Button>
+        </div>
+      )}
+
+      {loadingStatus && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Voortgang laden...
+        </div>
+      )}
 
       {/* Lesson Content */}
       <Card>
@@ -149,11 +206,9 @@ export default function LessonPage() {
                       <h3 className="font-medium text-white">{exercise.title}</h3>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="purple">{exercise.type}</Badge>
+                        <span className="text-xs text-gray-500">{exercise.points} punten</span>
                         <span className="text-xs text-gray-500">
-                          {exercise.points} punten
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          Moeilijkheid: {'★'.repeat(exercise.difficulty)}{'☆'.repeat(5 - exercise.difficulty)}
+                          {'★'.repeat(exercise.difficulty)}{'☆'.repeat(5 - exercise.difficulty)}
                         </span>
                       </div>
                     </div>
