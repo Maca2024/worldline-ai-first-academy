@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output creates a minimal self-contained bundle for Docker.
-  // Vercel ignores this setting — safe to always enable.
-  output: 'standalone',
+  // Docker deployments: BUILD_TARGET=docker npm run build
+  // Vercel: no output override needed (Vercel handles this internally)
+  ...(process.env.BUILD_TARGET === 'docker' && { output: 'standalone' }),
 };
 
 export default nextConfig;
