@@ -5,6 +5,11 @@ export type ExerciseType = 'prompt-craft' | 'code-review' | 'free-form' | 'multi
 export type ProgressStatus = 'not_started' | 'in_progress' | 'completed';
 export type SessionType = 'onsite' | 'remote' | 'hybrid' | 'office_hours';
 
+// Matches the format that supabase-js v2.99+ (PostgREST v12) expects:
+// - Explicit Insert/Update (no self-referential Omit<Database[...]>)
+// - Relationships array on each table (required by newer type resolution)
+// - CompositeTypes on the schema
+
 export interface Database {
   public: {
     Tables: {
@@ -20,8 +25,24 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Insert: {
+          id: string;
+          email: string;
+          full_name: string;
+          role?: UserRole;
+          squad_id?: string | null;
+          avatar_url?: string | null;
+          job_title?: string | null;
+        };
+        Update: {
+          email?: string;
+          full_name?: string;
+          role?: UserRole;
+          squad_id?: string | null;
+          avatar_url?: string | null;
+          job_title?: string | null;
+        };
+        Relationships: [];
       };
       squads: {
         Row: {
@@ -33,8 +54,22 @@ export interface Database {
           status: SquadStatus;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['squads']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['squads']['Insert']>;
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string;
+          intensive_start: string;
+          intensive_end: string;
+          status?: SquadStatus;
+        };
+        Update: {
+          name?: string;
+          description?: string;
+          intensive_start?: string;
+          intensive_end?: string;
+          status?: SquadStatus;
+        };
+        Relationships: [];
       };
       weeks: {
         Row: {
@@ -47,8 +82,24 @@ export interface Database {
           squad_ids: string[];
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['weeks']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['weeks']['Insert']>;
+        Insert: {
+          id?: string;
+          number: number;
+          title: string;
+          subtitle?: string;
+          description?: string;
+          objectives?: string[];
+          squad_ids?: string[];
+        };
+        Update: {
+          number?: number;
+          title?: string;
+          subtitle?: string;
+          description?: string;
+          objectives?: string[];
+          squad_ids?: string[];
+        };
+        Relationships: [];
       };
       lessons: {
         Row: {
@@ -64,8 +115,35 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['lessons']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['lessons']['Insert']>;
+        Insert: {
+          id?: string;
+          week_id: string;
+          day: number;
+          title: string;
+          type?: LessonType;
+          content_md?: string;
+          video_url?: string | null;
+          duration_min?: number;
+          order_index?: number;
+        };
+        Update: {
+          week_id?: string;
+          day?: number;
+          title?: string;
+          type?: LessonType;
+          content_md?: string;
+          video_url?: string | null;
+          duration_min?: number;
+          order_index?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'lessons_week_id_fkey';
+            columns: ['week_id'];
+            referencedRelation: 'weeks';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       exercises: {
         Row: {
@@ -79,8 +157,33 @@ export interface Database {
           rubric: Record<string, unknown>;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['exercises']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['exercises']['Insert']>;
+        Insert: {
+          id?: string;
+          lesson_id: string;
+          title: string;
+          instructions?: string;
+          type?: ExerciseType;
+          difficulty?: number;
+          points?: number;
+          rubric?: Record<string, unknown>;
+        };
+        Update: {
+          lesson_id?: string;
+          title?: string;
+          instructions?: string;
+          type?: ExerciseType;
+          difficulty?: number;
+          points?: number;
+          rubric?: Record<string, unknown>;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exercises_lesson_id_fkey';
+            columns: ['lesson_id'];
+            referencedRelation: 'lessons';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       lesson_progress: {
         Row: {
@@ -91,8 +194,31 @@ export interface Database {
           completed_at: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['lesson_progress']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['lesson_progress']['Insert']>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          lesson_id: string;
+          status?: ProgressStatus;
+          completed_at?: string | null;
+        };
+        Update: {
+          status?: ProgressStatus;
+          completed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'lesson_progress_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'lesson_progress_lesson_id_fkey';
+            columns: ['lesson_id'];
+            referencedRelation: 'lessons';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       exercise_submissions: {
         Row: {
@@ -105,8 +231,34 @@ export interface Database {
           instructor_feedback: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['exercise_submissions']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['exercise_submissions']['Insert']>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          exercise_id: string;
+          submission: string;
+          score?: number | null;
+          ai_feedback?: Record<string, unknown> | null;
+          instructor_feedback?: string | null;
+        };
+        Update: {
+          score?: number | null;
+          ai_feedback?: Record<string, unknown> | null;
+          instructor_feedback?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'exercise_submissions_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'exercise_submissions_exercise_id_fkey';
+            columns: ['exercise_id'];
+            referencedRelation: 'exercises';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       badges: {
         Row: {
@@ -118,8 +270,22 @@ export interface Database {
           points_required: number;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['badges']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['badges']['Insert']>;
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string;
+          icon?: string;
+          criteria?: string;
+          points_required?: number;
+        };
+        Update: {
+          name?: string;
+          description?: string;
+          icon?: string;
+          criteria?: string;
+          points_required?: number;
+        };
+        Relationships: [];
       };
       student_badges: {
         Row: {
@@ -128,8 +294,29 @@ export interface Database {
           badge_id: string;
           earned_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['student_badges']['Row'], 'id' | 'earned_at'>;
-        Update: Partial<Database['public']['Tables']['student_badges']['Insert']>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          badge_id: string;
+          earned_at?: string;
+        };
+        Update: {
+          earned_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'student_badges_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'student_badges_badge_id_fkey';
+            columns: ['badge_id'];
+            referencedRelation: 'badges';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       sessions: {
         Row: {
@@ -143,8 +330,33 @@ export interface Database {
           description: string;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['sessions']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['sessions']['Insert']>;
+        Insert: {
+          id?: string;
+          week_id: string;
+          day: number;
+          type?: SessionType;
+          location?: string;
+          start_time: string;
+          end_time: string;
+          description?: string;
+        };
+        Update: {
+          week_id?: string;
+          day?: number;
+          type?: SessionType;
+          location?: string;
+          start_time?: string;
+          end_time?: string;
+          description?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'sessions_week_id_fkey';
+            columns: ['week_id'];
+            referencedRelation: 'weeks';
+            referencedColumns: ['id'];
+          }
+        ];
       };
       ai_conversations: {
         Row: {
@@ -156,8 +368,26 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['ai_conversations']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['ai_conversations']['Insert']>;
+        Insert: {
+          id?: string;
+          user_id: string;
+          messages_json?: Record<string, unknown>[];
+          lesson_context?: string | null;
+          tokens_used?: number;
+        };
+        Update: {
+          messages_json?: Record<string, unknown>[];
+          lesson_context?: string | null;
+          tokens_used?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'ai_conversations_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          }
+        ];
       };
     };
     Views: Record<string, never>;
@@ -170,6 +400,7 @@ export interface Database {
       progress_status: ProgressStatus;
       session_type: SessionType;
     };
+    CompositeTypes: Record<string, never>;
   };
 }
 
