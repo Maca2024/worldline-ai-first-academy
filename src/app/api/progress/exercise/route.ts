@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       score: aiFeedback.score,
       ai_feedback: aiFeedback,
     })
-    .select()
+    .select('id')
     .single();
 
   if (dbError) {

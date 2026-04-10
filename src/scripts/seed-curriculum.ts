@@ -11,7 +11,21 @@
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+
+// Deterministic UUID from a namespace + name — same input always gives same UUID
+function deterministicUuid(name: string): string {
+  const NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
+  const nsBytes = NAMESPACE.replace(/-/g, '').match(/.{2}/g)!.map(h => parseInt(h, 16));
+  const nameBytes = Buffer.from(name, 'utf8');
+  const combined = Buffer.from([...nsBytes, ...nameBytes]);
+  const hash = crypto.createHash('sha1').update(combined).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50; // version 5
+  hash[8] = (hash[8] & 0x3f) | 0x80; // variant
+  const hex = hash.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+}
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
@@ -53,7 +67,7 @@ async function seed() {
       .from('weeks')
       .upsert(
         {
-          id: `week-${week.number}-uuid`,
+          id: deterministicUuid(`week-${week.number}`),
           number: week.number,
           title: week.title,
           subtitle: week.subtitle,
@@ -81,7 +95,7 @@ async function seed() {
           .from('lessons')
           .upsert(
             {
-              id: lesson.id,
+              id: deterministicUuid(lesson.id),
               week_id: weekId,
               day: day.day,
               title: lesson.title,
@@ -111,7 +125,7 @@ async function seed() {
               .from('exercises')
               .upsert(
                 {
-                  id: exercise.id,
+                  id: deterministicUuid(exercise.id),
                   lesson_id: lessonRow.id,
                   title: exercise.title,
                   instructions: exercise.instructions,
@@ -126,7 +140,7 @@ async function seed() {
             if (exErr) {
               console.error(`      ❌ Exercise "${exercise.title}" failed:`, exErr.message);
             } else {
-              console.log(`    ✓ Exercise: ${exercise.title}`);
+              console.log(`      ✓ Exercise: ${exercise.title}`);
             }
           }
         }
