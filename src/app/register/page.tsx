@@ -1,13 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { OAuthButtons, OAuthDivider } from '@/components/ui/oauth-buttons';
+import { Suspense } from 'react';
 
 export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +32,48 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const urlError = searchParams.get('error');
+  const urlErrorMessages: Record<string, string> = {
+    invite_required: 'Gebruik de invite code om te registreren via Google of GitHub.',
+    invite_expired: 'Je invite code is verlopen (max. 10 minuten geldig). Probeer opnieuw.',
+  };
+
+  /** Validates the invite code server-side and sets a signed cookie for OAuth flow. */
+  const validateForOAuth = async (): Promise<boolean> => {
+    setError('');
+    if (!inviteCode.trim()) {
+      setError('Vul eerst je invite code in om door te gaan.');
+      return false;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/oauth-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteCode }),
+      });
+
+      if (res.status === 429) {
+        setError('Te veel pogingen. Probeer het over 15 minuten opnieuw.');
+        return false;
+      }
+
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (!data.ok) {
+        setError(data.error ?? 'Ongeldige invite code.');
+        return false;
+      }
+      return true;
+    } catch {
+      setError('Kan verbinding niet maken. Controleer je internetverbinding.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,15 +96,15 @@ export default function RegisterPage() {
         return;
       }
 
-      const validateData = await validateRes.json();
+      const validateData = await validateRes.json() as { valid: boolean; role?: typeof role; squad?: string; error?: string };
       if (!validateData.valid) {
         setError(validateData.error ?? 'Ongeldige invite code.');
         setLoading(false);
         return;
       }
 
-      role = validateData.role;
-      squadName = validateData.squad;
+      role = validateData.role!;
+      squadName = validateData.squad!;
     } catch {
       setError('Kan verbinding niet maken. Controleer je internetverbinding.');
       setLoading(false);
@@ -54,16 +112,11 @@ export default function RegisterPage() {
     }
 
     const supabase = createClient();
-
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          full_name: fullName,
-          squad_name: squadName,
-          role,
-        },
+        data: { full_name: fullName, squad_name: squadName, role },
       },
     });
 
@@ -109,6 +162,35 @@ export default function RegisterPage() {
         </div>
 
         <div className="glass rounded-2xl p-8">
+          {/* URL-based error (from OAuth redirect) */}
+          {urlError && urlErrorMessages[urlError] && (
+            <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 mb-5">
+              <p className="text-sm text-yellow-400">{urlErrorMessages[urlError]}</p>
+            </div>
+          )}
+
+          {/* Invite code field — required for ALL registration paths */}
+          <div className="mb-5">
+            <Input
+              id="inviteCode"
+              label="Invite Code"
+              type="text"
+              placeholder="SQUAD-X-2026"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              required
+            />
+            <p className="mt-1.5 text-xs text-gray-500">
+              Vereist voor alle inlogmethoden &mdash; ontvangen van je squad-trainer
+            </p>
+          </div>
+
+          {/* OAuth sign-up (invite code validated before redirect) */}
+          <OAuthButtons onBeforeOAuth={validateForOAuth} />
+
+          <OAuthDivider />
+
+          {/* Email/password registration */}
           <form onSubmit={handleRegister} className="space-y-5">
             <Input
               id="fullName"
@@ -119,7 +201,6 @@ export default function RegisterPage() {
               onChange={(e) => setFullName(e.target.value)}
               required
             />
-
             <Input
               id="email"
               label="E-mailadres"
@@ -130,7 +211,6 @@ export default function RegisterPage() {
               required
               autoComplete="email"
             />
-
             <Input
               id="password"
               label="Wachtwoord"
@@ -143,16 +223,6 @@ export default function RegisterPage() {
               autoComplete="new-password"
             />
 
-            <Input
-              id="inviteCode"
-              label="Invite Code"
-              type="text"
-              placeholder="SQUAD-X-2026"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              required
-            />
-
             {error && (
               <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
                 <p className="text-sm text-red-400">{error}</p>
@@ -160,7 +230,7 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" loading={loading} className="w-full" size="lg">
-              Account aanmaken
+              Account aanmaken met e-mail
             </Button>
           </form>
 

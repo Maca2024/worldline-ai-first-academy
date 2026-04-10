@@ -6,10 +6,17 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { OAuthButtons, OAuthDivider } from '@/components/ui/oauth-buttons';
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" /></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
@@ -24,16 +31,20 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/academy';
 
+  const authError = searchParams.get('error');
+  const errorMessages: Record<string, string> = {
+    auth_failed: 'Inloggen mislukt. Probeer het opnieuw.',
+    invite_required: 'Maak eerst een account aan met een invite code.',
+    invite_expired: 'Je invite code is verlopen. Vraag een nieuwe aan.',
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
       setError(authError.message);
@@ -59,8 +70,20 @@ function LoginForm() {
           <p className="text-gray-400">Log in om verder te gaan met je training</p>
         </div>
 
-        {/* Form */}
         <div className="glass rounded-2xl p-8">
+          {/* URL-based error (from OAuth redirect) */}
+          {authError && errorMessages[authError] && (
+            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 mb-5">
+              <p className="text-sm text-red-400">{errorMessages[authError]}</p>
+            </div>
+          )}
+
+          {/* OAuth sign-in */}
+          <OAuthButtons />
+
+          <OAuthDivider />
+
+          {/* Email/password sign-in */}
           <form onSubmit={handleLogin} className="space-y-5">
             <Input
               id="email"
@@ -72,7 +95,6 @@ function LoginForm() {
               required
               autoComplete="email"
             />
-
             <Input
               id="password"
               label="Wachtwoord"
@@ -91,7 +113,7 @@ function LoginForm() {
             )}
 
             <Button type="submit" loading={loading} className="w-full" size="lg">
-              Inloggen
+              Inloggen met e-mail
             </Button>
           </form>
 
@@ -105,7 +127,6 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-xs text-gray-600 mt-6">
           Worldline AI-First Developer Academy &mdash; Powered by AetherLink B.V.
         </p>
