@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { rateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 const SYSTEM_PROMPT = `Je bent de AI Tutor van de Worldline AI-First Developer Academy, gebouwd door AetherLink B.V.
 
@@ -25,6 +26,22 @@ REGELS:
 Je bent een behulpzame, geduldige tutor. De studenten zijn ervaren Worldline engineers die nieuw zijn met AI-first development.`;
 
 export async function POST(request: Request) {
+  // Rate limit: 20 requests per minute per IP
+  const rl = rateLimit(getRateLimitKey(request, 'ai-tutor'), {
+    limit: 20,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rl.success) {
+    return NextResponse.json(
+      { content: `Te veel berichten. Wacht ${rl.retryAfterSeconds} seconden en probeer opnieuw.` },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rl.retryAfterSeconds) },
+      }
+    );
+  }
+
   try {
     const { messages } = await request.json();
 

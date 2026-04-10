@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { rateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 const EVALUATION_PROMPT = `Je bent een exercise evaluator voor de Worldline AI-First Developer Academy.
 
@@ -33,6 +34,19 @@ export async function POST(request: Request) {
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Niet geauthenticeerd.' }, { status: 401 });
+  }
+
+  // Rate limit: 10 submissions per 5 minutes per user
+  const rl = rateLimit(getRateLimitKey(request, `exercise:${user.id}`), {
+    limit: 10,
+    windowMs: 5 * 60 * 1000,
+  });
+
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: `Te veel inzendingen. Wacht ${rl.retryAfterSeconds} seconden.` },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } }
+    );
   }
 
   let exerciseId: string;
