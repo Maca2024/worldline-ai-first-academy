@@ -7,13 +7,6 @@ import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const VALID_INVITE_CODES: Record<string, string> = {
-  'SQUAD-A-2026': 'Squad A',
-  'SQUAD-B-2026': 'Squad B',
-  'SQUAD-C-2026': 'Squad C',
-  'INSTRUCTOR-2026': 'Instructors',
-};
-
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -29,10 +22,33 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
 
-    // Validate invite code
-    const squadName = VALID_INVITE_CODES[inviteCode.toUpperCase()];
-    if (!squadName) {
-      setError('Ongeldige invite code. Neem contact op met je instructor.');
+    // Validate invite code server-side — codes never live in client JS
+    let role: 'student' | 'instructor' = 'student';
+    let squadName = '';
+    try {
+      const validateRes = await fetch('/api/auth/validate-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteCode }),
+      });
+
+      if (validateRes.status === 429) {
+        setError('Te veel pogingen. Probeer het over 15 minuten opnieuw.');
+        setLoading(false);
+        return;
+      }
+
+      const validateData = await validateRes.json();
+      if (!validateData.valid) {
+        setError(validateData.error ?? 'Ongeldige invite code.');
+        setLoading(false);
+        return;
+      }
+
+      role = validateData.role;
+      squadName = validateData.squad;
+    } catch {
+      setError('Kan verbinding niet maken. Controleer je internetverbinding.');
       setLoading(false);
       return;
     }
@@ -45,8 +61,8 @@ export default function RegisterPage() {
       options: {
         data: {
           full_name: fullName,
-          invite_code: inviteCode.toUpperCase(),
-          role: inviteCode.toUpperCase() === 'INSTRUCTOR-2026' ? 'instructor' : 'student',
+          squad_name: squadName,
+          role,
         },
       },
     });
