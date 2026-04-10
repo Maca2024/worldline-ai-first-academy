@@ -111,6 +111,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ...aiFeedback, saved: false });
   }
 
+  // Trigger badge evaluation (fire-and-forget)
+  fetch(new URL('/api/badges/award', request.url).toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      cookie: request.headers.get('cookie') ?? '',
+    },
+    body: JSON.stringify({ trigger: 'exercise_submit', score: aiFeedback.score }),
+  }).catch(() => { /* non-critical */ });
+
   return NextResponse.json({ ...aiFeedback, saved: true, submissionId: data.id });
 }
 

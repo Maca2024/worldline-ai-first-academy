@@ -14,9 +14,11 @@ export async function POST(request: Request) {
   }
 
   let lessonId: string;
+  let weekNumber: number | undefined;
   try {
     const body = await request.json();
     lessonId = typeof body.lessonId === 'string' ? body.lessonId.trim() : '';
+    weekNumber = typeof body.weekNumber === 'number' ? body.weekNumber : undefined;
   } catch {
     return NextResponse.json({ error: 'Ongeldig verzoek.' }, { status: 400 });
   }
@@ -44,6 +46,19 @@ export async function POST(request: Request) {
     console.error('lesson_progress upsert error:', error);
     return NextResponse.json({ error: 'Voortgang opslaan mislukt.' }, { status: 500 });
   }
+
+  // Trigger badge evaluation (fire-and-forget — don't block response)
+  const badgePayload: Record<string, unknown> = { trigger: 'lesson_complete' };
+  if (weekNumber !== undefined) badgePayload.weekNumber = weekNumber;
+
+  fetch(new URL('/api/badges/award', request.url).toString(), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      cookie: request.headers.get('cookie') ?? '',
+    },
+    body: JSON.stringify(badgePayload),
+  }).catch(() => { /* non-critical */ });
 
   return NextResponse.json({ success: true, progress: data });
 }
